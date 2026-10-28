@@ -1,7 +1,6 @@
-import assert from "assert";
+import assert from "node:assert";
 import moment from "moment";
 
-// Setup window.moment mock before importing plugin modules
 (globalThis as any).window = {
   moment,
 };
@@ -13,7 +12,6 @@ import { TemplateSuggestionProvider } from "../src/suggest/providers/template-pr
 import { FileSuggestionProvider } from "../src/suggest/providers/file-provider";
 import { getFormattedDate } from "../src/utils";
 
-// Mock Obsidian's prepareFuzzySearch and normalizePath on the obsidian module
 function createMockPlugin(
   files: { path: string; basename: string; parentPath: string; mtime?: number; aliases?: string[] }[],
   templaterFolder = "Templates"
@@ -127,7 +125,7 @@ async function runTests() {
   assert.strictEqual(dateSuggestions[0].label, "Today");
   assert.strictEqual(dateSuggestions[0].category, "date");
   assert.strictEqual(
-    dateSuggestions[0].parsedPreview,
+    dateSuggestions[0].formattedValue,
     moment().format("YYYY-MM-DD")
   );
 

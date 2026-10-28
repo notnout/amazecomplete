@@ -1,21 +1,7 @@
-import { Moment } from "moment";
-import {
-  App,
-  Editor,
-  EditorPosition,
-  EditorRange,
-  normalizePath,
-  TFile,
-} from "obsidian";
-import {
-  createDailyNote,
-  getAllDailyNotes,
-  getDailyNote,
-} from "obsidian-daily-notes-interface";
-
+import { App, normalizePath, TFile } from "obsidian";
 import { DayOfWeek } from "./settings";
 
-const daysOfWeek: Exclude<DayOfWeek, "locale-default">[] = [
+export const DAYS_OF_WEEK: Exclude<DayOfWeek, "locale-default">[] = [
   "sunday",
   "monday",
   "tuesday",
@@ -25,58 +11,6 @@ const daysOfWeek: Exclude<DayOfWeek, "locale-default">[] = [
   "saturday",
 ];
 
-export default function getWordBoundaries(editor: Editor): EditorRange {
-  const cursor = editor.getCursor();
-  const lineText = editor.getLine(cursor.line);
-
-  if ((editor as any).cm?.state?.wordAt) {
-    const pos = editor.posToOffset(cursor);
-    const word = (editor as any).cm.state.wordAt(pos);
-    if (word) {
-      return {
-        from: editor.offsetToPos(word.from),
-        to: editor.offsetToPos(word.to),
-      };
-    }
-  }
-
-  let start = cursor.ch;
-  let end = cursor.ch;
-  while (start > 0 && /\S/.test(lineText[start - 1])) {
-    start--;
-  }
-  while (end < lineText.length && /\S/.test(lineText[end])) {
-    end++;
-  }
-  return {
-    from: { line: cursor.line, ch: start },
-    to: { line: cursor.line, ch: end },
-  };
-}
-
-export function getSelectedText(editor: Editor): string {
-  if (editor.somethingSelected()) {
-    return editor.getSelection();
-  } else {
-    const wordBoundaries = getWordBoundaries(editor);
-    editor.setSelection(wordBoundaries.from, wordBoundaries.to);
-    return editor.getSelection();
-  }
-}
-
-export function adjustCursor(
-  editor: Editor,
-  cursor: EditorPosition,
-  newStr: string,
-  oldStr: string
-): void {
-  const cursorOffset = newStr.length - oldStr.length;
-  editor.setCursor({
-    line: cursor.line,
-    ch: cursor.ch + cursorOffset,
-  });
-}
-
 export function getFormattedDate(date: Date, format: string): string {
   return window.moment(date).format(format);
 }
@@ -85,20 +19,10 @@ export function getLastDayOfMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
 }
 
-export function parseTruthy(flag: string): boolean {
-  return ["y", "yes", "1", "t", "true"].indexOf(flag.toLowerCase()) >= 0;
-}
-
-export function getWeekNumber(
-  dayOfWeek: Exclude<DayOfWeek, "locale-default">
-): number {
-  return daysOfWeek.indexOf(dayOfWeek);
-}
-
 export function getLocaleWeekStart(): Exclude<DayOfWeek, "locale-default"> {
   // @ts-ignore
   const startOfWeek = window.moment?.localeData?.()?._week?.dow ?? 0;
-  return daysOfWeek[startOfWeek] || "sunday";
+  return DAYS_OF_WEEK[startOfWeek] || "sunday";
 }
 
 export function generateMarkdownLink(
@@ -110,58 +34,38 @@ export function generateMarkdownLink(
   const path = normalizePath(subpath);
 
   if (useMarkdownLinks) {
-    if (alias) {
-      return `[${alias}](${path.replace(/ /g, "%20")})`;
-    } else {
-      return `[${subpath}](${path})`;
-    }
-  } else {
-    if (alias) {
-      return `[[${path}|${alias}]]`;
-    } else {
-      return `[[${path}]]`;
-    }
+    return alias
+      ? `[${alias}](${path.replace(/ /g, "%20")})`
+      : `[${subpath}](${path})`;
   }
+  return alias ? `[[${path}|${alias}]]` : `[[${path}]]`;
 }
 
-export async function getOrCreateDailyNote(
-  date: Moment
-): Promise<TFile | null> {
-  const desiredNote = getDailyNote(date, getAllDailyNotes());
-  if (desiredNote) {
-    return Promise.resolve(desiredNote);
+export function isFileInFolder(file: TFile, folderPath: string | null): boolean {
+  if (!folderPath) {
+    return false;
   }
-  return createDailyNote(date);
+  const prefix = folderPath === "/" ? "" : `${folderPath}/`;
+  return file.path === folderPath || file.path.startsWith(prefix);
 }
 
-type DictionaryLike =
-  | string[]
-  | { [word: string]: unknown }
-  | Map<string, unknown>;
-
-function extractTerms(dictionary: DictionaryLike): string[] {
-  let keys: string[];
-  if (dictionary instanceof Array) {
-    keys = [...dictionary];
-  } else if (dictionary instanceof Map) {
-    keys = Array.from((dictionary as Map<string, unknown>).keys());
-  } else {
-    keys = Object.keys(dictionary);
+export function scoreFuzzyMatch(
+  text: string,
+  lowerQuery: string,
+  matchScore: number,
+  baseScore: number
+): number {
+  const lowerText = text.toLowerCase();
+  let score = baseScore + matchScore * 20;
+  if (lowerText === lowerQuery) {
+    score += 60;
+  } else if (lowerText.startsWith(lowerQuery)) {
+    score += 35;
   }
-
-  return keys;
+  return score;
 }
 
-function matchAnyPattern(dictionary: DictionaryLike): string {
-  const joinedTerms = extractTerms(dictionary)
-    .sort((a, b) => b.length - a.length)
-    .join("|")
-    .replace(/\./g, "\\.");
-
-  return `(?:${joinedTerms})`;
-}
-
-const ORDINAL_WORD_DICTIONARY: { [word: string]: number } = {
+const ORDINAL_WORD_DICTIONARY: Record<string, number> = {
   first: 1,
   second: 2,
   third: 3,
@@ -205,16 +109,16 @@ const ORDINAL_WORD_DICTIONARY: { [word: string]: number } = {
   "thirty-first": 31,
 };
 
-export const ORDINAL_NUMBER_PATTERN = `(?:${matchAnyPattern(
-  ORDINAL_WORD_DICTIONARY
-)}|[0-9]{1,2}(?:st|nd|rd|th)?)`;
+const ORDINAL_WORDS_JOINED = Object.keys(ORDINAL_WORD_DICTIONARY)
+  .sort((a, b) => b.length - a.length)
+  .join("|");
+
+export const ORDINAL_NUMBER_PATTERN = `(?:${ORDINAL_WORDS_JOINED}|[0-9]{1,2}(?:st|nd|rd|th)?)`;
 
 export function parseOrdinalNumberPattern(match: string): number {
-  let num = match.toLowerCase();
+  const num = match.toLowerCase();
   if (ORDINAL_WORD_DICTIONARY[num] !== undefined) {
     return ORDINAL_WORD_DICTIONARY[num];
   }
-
-  num = num.replace(/(?:st|nd|rd|th)$/i, "");
-  return parseInt(num, 10);
+  return parseInt(num.replace(/(?:st|nd|rd|th)$/i, ""), 10);
 }

@@ -67,14 +67,10 @@ export default class AmazeSuggest extends EditorSuggest<AmazeSuggestion> {
   getSuggestions(context: EditorSuggestContext): AmazeSuggestion[] {
     const query = context.query;
 
-    const dateSuggestions = this.dateProvider.getSuggestions(query);
-    const templateSuggestions = this.templateProvider.getSuggestions(query);
-    const fileSuggestions = this.fileProvider.getSuggestions(query);
-
     const combined: AmazeSuggestion[] = [
-      ...dateSuggestions,
-      ...templateSuggestions,
-      ...fileSuggestions,
+      ...this.dateProvider.getSuggestions(query),
+      ...this.templateProvider.getSuggestions(query),
+      ...this.fileProvider.getSuggestions(query),
     ];
 
     if (combined.length > 0) {
@@ -89,7 +85,6 @@ export default class AmazeSuggest extends EditorSuggest<AmazeSuggestion> {
       });
     }
 
-    // Fallback catch-all if dates are enabled and no matches were found, matching nldates behavior
     if (this.plugin.settings.enableDates && query.trim().length > 0) {
       const parsed = this.plugin.parseDate(query);
       return [
@@ -97,8 +92,7 @@ export default class AmazeSuggest extends EditorSuggest<AmazeSuggestion> {
           category: "date",
           label: query,
           subLabel: parsed.moment.isValid() ? parsed.formattedString : "",
-          rawQuery: query,
-          parsedPreview: parsed.formattedString,
+          formattedValue: parsed.formattedString,
           isTime: false,
           score: 1,
         },
@@ -111,7 +105,6 @@ export default class AmazeSuggest extends EditorSuggest<AmazeSuggestion> {
   renderSuggestion(suggestion: AmazeSuggestion, el: HTMLElement): void {
     el.empty();
     const container = el.createDiv({ cls: "amaze-suggest-item" });
-
     const mainEl = container.createDiv({ cls: "amaze-suggest-main" });
 
     const iconEl = mainEl.createSpan({ cls: "amaze-suggest-icon" });
@@ -218,7 +211,6 @@ export default class AmazeSuggest extends EditorSuggest<AmazeSuggestion> {
           )
         : "";
 
-    // Short-circuit if trigger is part of a word or inline code (e.g. email address)
     if (precedingChar && /[`a-zA-Z0-9]/.test(precedingChar)) {
       return null;
     }

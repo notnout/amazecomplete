@@ -7,7 +7,6 @@ import {
   ORDINAL_NUMBER_PATTERN,
   getLastDayOfMonth,
   getLocaleWeekStart,
-  getWeekNumber,
   parseOrdinalNumberPattern,
 } from "./utils";
 
@@ -19,42 +18,27 @@ export interface NLDResult {
 
 function getLocalizedChrono(): Chrono {
   const locale = window.moment?.locale?.() ?? "en";
-
-  switch (locale) {
-    case "en-gb":
-      return new chrono.Chrono(
-        chrono.en.configuration.createCasualConfiguration(true)
-      );
-    default:
-      return new chrono.Chrono(
-        chrono.en.configuration.createCasualConfiguration(false)
-      );
-  }
+  const littleEndian = locale === "en-gb";
+  return new chrono.Chrono(
+    chrono.en.configuration.createCasualConfiguration(littleEndian)
+  );
 }
 
 function getConfiguredChrono(): Chrono {
   const localizedChrono = getLocalizedChrono();
   localizedChrono.parsers.push({
-    pattern: () => {
-      return /\bChristmas\b/i;
-    },
-    extract: () => {
-      return {
-        day: 25,
-        month: 12,
-      };
-    },
+    pattern: () => /\bChristmas\b/i,
+    extract: () => ({ day: 25, month: 12 }),
   });
 
   localizedChrono.parsers.push({
     pattern: () => new RegExp(ORDINAL_NUMBER_PATTERN),
-    extract: (_context, match) => {
-      return {
-        day: parseOrdinalNumberPattern(match[0]),
-        month: (window.moment?.().month?.() ?? new Date().getMonth()) + 1,
-      };
-    },
+    extract: (_context, match) => ({
+      day: parseOrdinalNumberPattern(match[0]),
+      month: (window.moment?.().month?.() ?? new Date().getMonth()) + 1,
+    }),
   } as Parser);
+
   return localizedChrono;
 }
 
@@ -135,14 +119,6 @@ export default class NLDParser {
       });
     }
 
-    // Handle weekStart offset when weekday is parsed
-    const weekStartNum = getWeekNumber(weekStart);
-    const parsedDate = parser.parseDate(selectedText, referenceDate);
-    if (parsedDate && weekdayIsCertain && weekStartNum > 0) {
-      // Adjust if reference week start is different from Sunday
-      return parsedDate;
-    }
-
-    return parsedDate;
+    return parser.parseDate(selectedText, referenceDate);
   }
 }

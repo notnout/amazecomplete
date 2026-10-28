@@ -30,8 +30,6 @@ export class DateSuggestionProvider {
       }
     }
 
-    // If the user typed a custom natural language date expression not covered by presets,
-    // attempt to parse it directly via NLDParser (chrono-node), matching nldates catch-all behavior.
     if (trimmedQuery.length > 0 && !seenLabels.has(trimmedQuery.toLowerCase())) {
       const dynamicSuggestion = this.buildDateSuggestion(
         trimmedQuery,
@@ -49,7 +47,7 @@ export class DateSuggestionProvider {
   private getPresetLabels(query: string): string[] {
     const lowerQuery = query.toLowerCase();
 
-    if (query.match(/^time/i)) {
+    if (/^time/i.test(query)) {
       return ["now", "+15 minutes", "+1 hour", "-15 minutes", "-1 hour"]
         .map((val) => `time:${val}`)
         .filter((label) => label.toLowerCase().startsWith(lowerQuery));
@@ -101,21 +99,12 @@ export class DateSuggestionProvider {
     baseScore: number
   ): DateSuggestion | null {
     const isTime = label.toLowerCase().startsWith("time:");
-    let parsedPreview = "";
+    const parsed = isTime
+      ? this.plugin.parseTime(label.substring(5) || "now")
+      : this.plugin.parseDate(label);
 
-    if (isTime) {
-      const timePart = label.substring(5) || "now";
-      const parsed = this.plugin.parseTime(timePart);
-      if (!parsed.moment.isValid()) {
-        return null;
-      }
-      parsedPreview = parsed.formattedString;
-    } else {
-      const parsed = this.plugin.parseDate(label);
-      if (!parsed.moment.isValid()) {
-        return null;
-      }
-      parsedPreview = parsed.formattedString;
+    if (!parsed.moment.isValid()) {
+      return null;
     }
 
     const lowerLabel = label.toLowerCase();
@@ -131,9 +120,8 @@ export class DateSuggestionProvider {
     return {
       category: "date",
       label,
-      subLabel: parsedPreview,
-      rawQuery: label,
-      parsedPreview,
+      subLabel: parsed.formattedString,
+      formattedValue: parsed.formattedString,
       isTime,
       score,
     };
@@ -146,25 +134,17 @@ export class DateSuggestionProvider {
     end: EditorPosition,
     includeAlias: boolean
   ): void {
-    let dateStr = "";
-    let makeIntoLink = this.plugin.settings.autosuggestToggleLink;
+    const makeIntoLink =
+      !suggestion.isTime && this.plugin.settings.autosuggestToggleLink;
 
-    if (suggestion.isTime) {
-      const timePart = suggestion.rawQuery.substring(5);
-      dateStr = this.plugin.parseTime(timePart).formattedString;
-      makeIntoLink = false;
-    } else {
-      dateStr = this.plugin.parseDate(suggestion.rawQuery).formattedString;
-    }
+    const output = makeIntoLink
+      ? generateMarkdownLink(
+          this.plugin.app,
+          suggestion.formattedValue,
+          includeAlias ? suggestion.label : undefined
+        )
+      : suggestion.formattedValue;
 
-    if (makeIntoLink) {
-      dateStr = generateMarkdownLink(
-        this.plugin.app,
-        dateStr,
-        includeAlias ? suggestion.label : undefined
-      );
-    }
-
-    editor.replaceRange(dateStr, start, end);
+    editor.replaceRange(output, start, end);
   }
 }

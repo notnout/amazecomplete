@@ -1,14 +1,14 @@
-import {
-  Editor,
-  EditorPosition,
-  normalizePath,
-  prepareFuzzySearch,
-  TFile,
-} from "obsidian";
+import { Editor, EditorPosition, prepareFuzzySearch, TFile } from "obsidian";
 import type AmazeCompletePlugin from "../../main";
-import { generateMarkdownLink } from "../../utils";
+import {
+  generateMarkdownLink,
+  isFileInFolder,
+  scoreFuzzyMatch,
+} from "../../utils";
 import { FileSuggestion } from "../types";
 import { TemplateSuggestionProvider } from "./template-provider";
+
+const MAX_FILE_SUGGESTIONS = 10;
 
 export class FileSuggestionProvider {
   private plugin: AmazeCompletePlugin;
@@ -28,42 +28,22 @@ export class FileSuggestionProvider {
     }
 
     const { app, settings } = this.plugin;
-    const allFiles = app.vault.getMarkdownFiles();
     const templateFolder =
       settings.enableTemplates && settings.excludeTemplatesFromFiles
         ? this.templateProvider.getTemplateFolderPath()
         : null;
-    const templatePrefix =
-      templateFolder && templateFolder !== "/" ? `${templateFolder}/` : null;
 
-    const excludedPrefixes = (settings.excludedFolders || [])
-      .map((f) => f.trim())
-      .filter(Boolean)
-      .map((f) => `${normalizePath(f)}/`);
-
-    const candidateFiles = allFiles.filter((file) => {
-      if (
-        templatePrefix &&
-        (file.path === templateFolder || file.path.startsWith(templatePrefix))
-      ) {
-        return false;
-      }
-      for (const prefix of excludedPrefixes) {
-        if (file.path.startsWith(prefix)) {
-          return false;
-        }
-      }
-      return true;
-    });
+    const candidateFiles = app.vault
+      .getMarkdownFiles()
+      .filter((file) => !isFileInFolder(file, templateFolder));
 
     const trimmedQuery = query.trim();
-    const maxResults = settings.maxFileSuggestions || 10;
 
     if (!trimmedQuery) {
       return candidateFiles
         .slice()
         .sort((a, b) => b.stat.mtime - a.stat.mtime)
-        .slice(0, maxResults)
+        .slice(0, MAX_FILE_SUGGESTIONS)
         .map((file, idx) => ({
           category: "file",
           label: file.basename,
@@ -82,57 +62,41 @@ export class FileSuggestionProvider {
 
     for (const file of candidateFiles) {
       const basenameMatch = fuzzy(file.basename);
-      let bestScore = -Infinity;
+      let bestScore = basenameMatch
+        ? scoreFuzzyMatch(file.basename, lowerQuery, basenameMatch.score, 85)
+        : -Infinity;
       let matchedAlias: string | undefined;
-      let bestMatch = basenameMatch ?? undefined;
-
-      if (basenameMatch) {
-        const lowerName = file.basename.toLowerCase();
-        bestScore = 85 + basenameMatch.score * 20;
-        if (lowerName === lowerQuery) {
-          bestScore += 60;
-        } else if (lowerName.startsWith(lowerQuery)) {
-          bestScore += 35;
-        }
-      }
 
       if (settings.includeFileAliases) {
-        const aliases = this.getFileAliases(file);
-        for (const alias of aliases) {
+        for (const alias of this.getFileAliases(file)) {
           const aliasMatch = fuzzy(alias);
           if (aliasMatch) {
-            const lowerAlias = alias.toLowerCase();
-            let aliasScore = 82 + aliasMatch.score * 20;
-            if (lowerAlias === lowerQuery) {
-              aliasScore += 55;
-            } else if (lowerAlias.startsWith(lowerQuery)) {
-              aliasScore += 30;
-            }
-
+            const aliasScore = scoreFuzzyMatch(
+              alias,
+              lowerQuery,
+              aliasMatch.score,
+              82
+            );
             if (aliasScore > bestScore) {
               bestScore = aliasScore;
               matchedAlias = alias;
-              bestMatch = aliasMatch;
             }
           }
         }
       }
 
       if (bestScore > -Infinity) {
-        const folderLabel =
-          file.parent?.path && file.parent.path !== "/"
-            ? file.parent.path
-            : "";
-
         matched.push({
           category: "file",
           label: matchedAlias
             ? `${matchedAlias} (${file.basename})`
             : file.basename,
-          subLabel: folderLabel,
+          subLabel:
+            file.parent?.path && file.parent.path !== "/"
+              ? file.parent.path
+              : "",
           file,
           alias: matchedAlias,
-          match: bestMatch,
           score: bestScore,
         });
       }
@@ -140,16 +104,13 @@ export class FileSuggestionProvider {
 
     return matched
       .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label))
-      .slice(0, maxResults);
+      .slice(0, MAX_FILE_SUGGESTIONS);
   }
 
   private getFileAliases(file: TFile): string[] {
     const cache = this.plugin.app.metadataCache.getFileCache(file);
     const rawAliases =
       cache?.frontmatter?.aliases ?? cache?.frontmatter?.alias;
-    if (!rawAliases) {
-      return [];
-    }
     if (Array.isArray(rawAliases)) {
       return rawAliases
         .filter((a): a is string => typeof a === "string" && a.trim().length > 0)
@@ -173,21 +134,14 @@ export class FileSuggestionProvider {
     const aliasToUse =
       suggestion.alias || (includeAlias ? suggestion.file.basename : undefined);
 
-    let linkStr: string;
-    if (app.fileManager?.generateMarkdownLink) {
-      linkStr = app.fileManager.generateMarkdownLink(
-        suggestion.file,
-        sourcePath,
-        undefined,
-        aliasToUse
-      );
-    } else {
-      linkStr = generateMarkdownLink(
-        app,
-        suggestion.file.basename,
-        aliasToUse
-      );
-    }
+    const linkStr = app.fileManager?.generateMarkdownLink
+      ? app.fileManager.generateMarkdownLink(
+          suggestion.file,
+          sourcePath,
+          undefined,
+          aliasToUse
+        )
+      : generateMarkdownLink(app, suggestion.file.basename, aliasToUse);
 
     editor.replaceRange(linkStr, start, end);
   }

@@ -1,4 +1,4 @@
-import { SearchResult, TFile } from "obsidian";
+import { TFile } from "obsidian";
 
 export type SuggestionCategory = "date" | "template" | "file";
 
@@ -11,22 +11,19 @@ export interface BaseSuggestion {
 
 export interface DateSuggestion extends BaseSuggestion {
   category: "date";
-  rawQuery: string;
-  parsedPreview: string;
+  formattedValue: string;
   isTime: boolean;
 }
 
 export interface TemplateSuggestion extends BaseSuggestion {
   category: "template";
   file: TFile;
-  match?: SearchResult;
 }
 
 export interface FileSuggestion extends BaseSuggestion {
   category: "file";
   file: TFile;
   alias?: string;
-  match?: SearchResult;
 }
 
 export type AmazeSuggestion =

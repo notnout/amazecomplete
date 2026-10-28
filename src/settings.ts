@@ -1,6 +1,6 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import AmazeCompletePlugin from "./main";
-import { getLocaleWeekStart } from "./utils";
+import { DAYS_OF_WEEK, getLocaleWeekStart } from "./utils";
 
 export type DayOfWeek =
   | "sunday"
@@ -15,51 +15,38 @@ export type DayOfWeek =
 export type TemplateEngineMode = "auto" | "templater" | "core-templates";
 
 export interface AmazeSettings {
-  // Core NLD-compatible autosuggest settings
-  autosuggestToggleLink: boolean;
-  autocompleteTriggerPhrase: string;
+  // Trigger settings
   isAutosuggestEnabled: boolean;
+  autocompleteTriggerPhrase: string;
 
-  // NLD Parser & Formatting settings
+  // Natural Language Dates settings
+  enableDates: boolean;
+  autosuggestToggleLink: boolean;
   format: string;
   timeFormat: string;
-  separator: string;
   weekStart: DayOfWeek;
 
-  // NLD Modal settings
-  modalToggleTime: boolean;
-  modalToggleLink: boolean;
-  modalMomentFormat: string;
-
-  // Provider toggles & options
-  enableDates: boolean;
+  // Template settings
   enableTemplates: boolean;
   templateEngine: TemplateEngineMode;
   customTemplateFolder: string;
 
+  // File settings
   enableFiles: boolean;
   includeFileAliases: boolean;
   excludeTemplatesFromFiles: boolean;
-  excludedFolders: string[];
-  maxFileSuggestions: number;
-  maxTemplateSuggestions: number;
 }
 
 export const DEFAULT_SETTINGS: AmazeSettings = {
-  autosuggestToggleLink: true,
-  autocompleteTriggerPhrase: "@",
   isAutosuggestEnabled: true,
-
-  format: "YYYY-MM-DD",
-  timeFormat: "HH:mm",
-  separator: " ",
-  weekStart: "locale-default",
-
-  modalToggleTime: false,
-  modalToggleLink: false,
-  modalMomentFormat: "YYYY-MM-DD HH:mm",
+  autocompleteTriggerPhrase: "@",
 
   enableDates: true,
+  autosuggestToggleLink: true,
+  format: "YYYY-MM-DD",
+  timeFormat: "HH:mm",
+  weekStart: "locale-default",
+
   enableTemplates: true,
   templateEngine: "auto",
   customTemplateFolder: "",
@@ -67,20 +54,7 @@ export const DEFAULT_SETTINGS: AmazeSettings = {
   enableFiles: true,
   includeFileAliases: true,
   excludeTemplatesFromFiles: true,
-  excludedFolders: [],
-  maxFileSuggestions: 10,
-  maxTemplateSuggestions: 10,
 };
-
-const weekdays: DayOfWeek[] = [
-  "sunday",
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-];
 
 export class AmazeSettingsTab extends PluginSettingTab {
   plugin: AmazeCompletePlugin;
@@ -113,10 +87,6 @@ export class AmazeSettingsTab extends PluginSettingTab {
     const localeWeekStart = getLocaleWeekStart();
 
     containerEl.empty();
-
-    containerEl.createEl("h2", {
-      text: "AmazeComplete",
-    });
 
     // --- Section 1: Autosuggest trigger ---
     containerEl.createEl("h3", {
@@ -218,7 +188,7 @@ export class AmazeSettingsTab extends PluginSettingTab {
             `Locale default (${localeWeekStart})`
           );
           localizedWeekdays.forEach((day, i) => {
-            dropdown.addOption(weekdays[i], day);
+            dropdown.addOption(DAYS_OF_WEEK[i], day);
           });
           dropdown.setValue(this.plugin.settings.weekStart.toLowerCase());
           dropdown.onChange(async (value: DayOfWeek) => {
@@ -229,28 +199,13 @@ export class AmazeSettingsTab extends PluginSettingTab {
 
       new Setting(containerEl)
         .setName("Time format")
-        .setDesc(
-          "Format for time expressions and hotkeys that include the current time"
-        )
+        .setDesc("Output format for time expressions (e.g., time:now)")
         .addMomentFormat((text) =>
           text
             .setDefaultFormat("HH:mm")
             .setValue(this.plugin.settings.timeFormat)
             .onChange(async (value) => {
               this.plugin.settings.timeFormat = value || "HH:mm";
-              await this.plugin.saveSettings();
-            })
-        ),
-
-      new Setting(containerEl)
-        .setName("Separator")
-        .setDesc("Separator between date and time for entries that have both")
-        .addText((text) =>
-          text
-            .setPlaceholder("Separator is empty")
-            .setValue(this.plugin.settings.separator)
-            .onChange(async (value) => {
-              this.plugin.settings.separator = value;
               await this.plugin.saveSettings();
             })
         )

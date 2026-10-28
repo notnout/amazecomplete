@@ -1,4 +1,3 @@
-// Minimal mock of 'obsidian' APIs for running unit tests outside Obsidian
 export function normalizePath(path: string): string {
   return path.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
 }
@@ -14,7 +13,6 @@ export function prepareFuzzySearch(query: string) {
         matches: [[idx, idx + lowerQuery.length]],
       };
     }
-    // Simple subsequence match
     let qIdx = 0;
     for (let i = 0; i < lowerText.length && qIdx < lowerQuery.length; i++) {
       if (lowerText[i] === lowerQuery[qIdx]) {
@@ -22,10 +20,7 @@ export function prepareFuzzySearch(query: string) {
       }
     }
     if (qIdx === lowerQuery.length) {
-      return {
-        score: -0.5,
-        matches: [],
-      };
+      return { score: -0.5, matches: [] };
     }
     return null;
   };
@@ -39,7 +34,6 @@ export function setIcon(el: any, iconId: string): void {
 
 export class Plugin {}
 export class PluginSettingTab {}
-export class Modal {}
 export class EditorSuggest<T> {
   app: any;
   context: any;
@@ -59,7 +53,4 @@ export class Setting {
   addDropdown() { return this; }
 }
 export class Notice {}
-export class MarkdownView {}
 export class TFile {}
-export class TFolder {}
-export class Vault {}

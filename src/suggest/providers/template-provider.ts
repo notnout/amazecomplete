@@ -7,8 +7,14 @@ import {
   TFile,
 } from "obsidian";
 import type AmazeCompletePlugin from "../../main";
-import { generateMarkdownLink } from "../../utils";
+import {
+  generateMarkdownLink,
+  isFileInFolder,
+  scoreFuzzyMatch,
+} from "../../utils";
 import { TemplateSuggestion } from "../types";
+
+const MAX_TEMPLATE_SUGGESTIONS = 10;
 
 export class TemplateSuggestionProvider {
   private plugin: AmazeCompletePlugin;
@@ -17,10 +23,6 @@ export class TemplateSuggestionProvider {
     this.plugin = plugin;
   }
 
-  /**
-   * Resolves the active template folder path from plugin settings,
-   * Templater settings, or Obsidian's core Templates plugin.
-   */
   getTemplateFolderPath(): string | null {
     const { settings, app } = this.plugin;
 
@@ -31,10 +33,9 @@ export class TemplateSuggestionProvider {
     const mode = settings.templateEngine;
 
     if (mode === "auto" || mode === "templater") {
-      const templaterPlugin = (app as any).plugins?.plugins?.[
+      const templaterFolder = (app as any).plugins?.plugins?.[
         "templater-obsidian"
-      ];
-      const templaterFolder = templaterPlugin?.settings?.templates_folder;
+      ]?.settings?.templates_folder;
       if (templaterFolder && typeof templaterFolder === "string") {
         return normalizePath(templaterFolder.trim());
       }
@@ -44,10 +45,8 @@ export class TemplateSuggestionProvider {
     }
 
     if (mode === "auto" || mode === "core-templates") {
-      const coreTemplates = (app as any).internalPlugins?.plugins?.[
-        "templates"
-      ];
-      const coreFolder = coreTemplates?.instance?.options?.folder;
+      const coreFolder = (app as any).internalPlugins?.plugins?.["templates"]
+        ?.instance?.options?.folder;
       if (coreFolder && typeof coreFolder === "string") {
         return normalizePath(coreFolder.trim());
       }
@@ -62,12 +61,9 @@ export class TemplateSuggestionProvider {
       return [];
     }
 
-    const prefix = folderPath === "/" ? "" : `${folderPath}/`;
     return this.plugin.app.vault
       .getMarkdownFiles()
-      .filter(
-        (file) => file.path === folderPath || file.path.startsWith(prefix)
-      );
+      .filter((file) => isFileInFolder(file, folderPath));
   }
 
   getSuggestions(query: string): TemplateSuggestion[] {
@@ -81,17 +77,19 @@ export class TemplateSuggestionProvider {
     }
 
     const trimmedQuery = query.trim();
-    const maxResults = this.plugin.settings.maxTemplateSuggestions || 10;
 
     if (!trimmedQuery) {
       return templateFiles
         .slice()
         .sort((a, b) => a.basename.localeCompare(b.basename))
-        .slice(0, maxResults)
+        .slice(0, MAX_TEMPLATE_SUGGESTIONS)
         .map((file, idx) => ({
           category: "template",
           label: file.basename,
-          subLabel: file.parent?.path && file.parent.path !== "/" ? file.parent.path : "Template",
+          subLabel:
+            file.parent?.path && file.parent.path !== "/"
+              ? file.parent.path
+              : "Template",
           file,
           score: 80 - idx,
         }));
@@ -107,14 +105,6 @@ export class TemplateSuggestionProvider {
         continue;
       }
 
-      const lowerName = file.basename.toLowerCase();
-      let score = 90 + match.score * 20;
-      if (lowerName === lowerQuery) {
-        score += 60;
-      } else if (lowerName.startsWith(lowerQuery)) {
-        score += 35;
-      }
-
       matched.push({
         category: "template",
         label: file.basename,
@@ -123,14 +113,13 @@ export class TemplateSuggestionProvider {
             ? file.parent.path
             : "Template",
         file,
-        match,
-        score,
+        score: scoreFuzzyMatch(file.basename, lowerQuery, match.score, 90),
       });
     }
 
     return matched
       .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label))
-      .slice(0, maxResults);
+      .slice(0, MAX_TEMPLATE_SUGGESTIONS);
   }
 
   async selectSuggestion(
@@ -149,7 +138,6 @@ export class TemplateSuggestionProvider {
       return;
     }
 
-    // Remove the trigger and query text (e.g., "@Book") before inserting the template
     editor.replaceRange("", start, end);
     editor.setCursor(start);
 
@@ -185,7 +173,6 @@ export class TemplateSuggestionProvider {
         }
       }
 
-      // Fallback: Read raw markdown content and insert at cursor
       const rawContent = await app.vault.cachedRead(suggestion.file);
       editor.replaceRange(rawContent, start);
     } catch (err) {

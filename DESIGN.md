@@ -54,20 +54,17 @@ flowchart LR
 ### Project Directory Structure
 
 ```text
-obsidian-amazecomplete/
+amazecomplete/
 ├── manifest.json
 ├── package.json
 ├── tsconfig.json
 ├── esbuild.config.mjs
 ├── styles.css
 └── src/
-    ├── main.ts                      # Plugin lifecycle, commands, NLDParser init
+    ├── main.ts                      # Plugin lifecycle, settings & NLDParser init
     ├── settings.ts                  # AmazeSettings interface, DEFAULT_SETTINGS, SettingTab
     ├── parser.ts                    # NLDParser (ported from nldates-obsidian using chrono-node)
-    ├── utils.ts                     # Link generation, locale week start, ordinal helpers
-    ├── commands.ts                  # Optional NLD commands (Insert today, Parse date, etc.)
-    ├── modals/
-    │   └── date-picker.ts           # Optional NLD DatePickerModal compatibility
+    ├── utils.ts                     # Link generation, fuzzy scoring, folder & ordinal helpers
     └── suggest/
         ├── amaze-suggest.ts         # Unified EditorSuggest<AmazeSuggestion>
         ├── types.ts                 # Discriminated union types for suggestions
@@ -354,5 +351,5 @@ DOM Structure inside `renderSuggestion(suggestion: AmazeSuggestion, el: HTMLElem
 3. **Phase 3: Multi-Provider `EditorSuggest` (`src/suggest/`)**
    - Implement `DateSuggestionProvider`, `TemplateSuggestionProvider` (with Templater API integration), and `FileSuggestionProvider`.
    - Implement `AmazeSuggest` (`EditorSuggest<AmazeSuggestion>`) with unified ranking, badge rendering (`styles.css`), and `Shift+Enter` scope registration.
-4. **Phase 4: Commands & Polish**
-   - Register NLD-compatible commands (`Parse natural language date`, `Insert current date`, `Insert current time`, `Date picker`) so users can fully replace `nldates-obsidian` with `obsidian-amazecomplete`.
+4. **Phase 4: Verification & Release**
+   - Unit test all providers (`DateSuggestionProvider`, `TemplateSuggestionProvider`, `FileSuggestionProvider`) and package `main.js`, `manifest.json`, and `styles.css` for `amazecomplete`.

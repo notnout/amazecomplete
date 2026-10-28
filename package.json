@@ -1,11 +1,12 @@
 {
-  "name": "obsidian-amazecomplete",
+  "name": "amazecomplete",
   "version": "1.0.0",
   "description": "Smart unified autocomplete for Obsidian: natural language dates, Templater templates, and vault file links under a single trigger.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "version": "node version-bump.mjs && git add manifest.json versions.json",
     "test": "node --input-type=module -e 'import esbuild from \"esbuild\"; await esbuild.build({ entryPoints: [\"test/amazecomplete.test.ts\"], bundle: true, platform: \"node\", alias: { obsidian: \"./test/obsidian-mock.ts\" }, outfile: \"test/bundle.cjs\" });' && node test/bundle.cjs && rm -f test/bundle.cjs"
   },
   "keywords": [
@@ -15,20 +16,15 @@
     "templater",
     "links"
   ],
-  "author": "",
+  "author": "notnout",
   "license": "MIT",
   "devDependencies": {
-    "@types/moment": "^2.13.0",
     "@types/node": "^20.0.0",
-    "builtin-modules": "^3.3.0",
     "esbuild": "^0.21.5",
-    "moment": "^2.31.0",
     "obsidian": "latest",
-    "tslib": "^2.6.0",
     "typescript": "^5.4.5"
   },
   "dependencies": {
-    "chrono-node": "^2.7.7",
-    "obsidian-daily-notes-interface": "^0.9.4"
+    "chrono-node": "^2.7.7"
   }
 }
