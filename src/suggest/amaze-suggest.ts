@@ -1,0 +1,232 @@
+import {
+  App,
+  Editor,
+  EditorPosition,
+  EditorSuggest,
+  EditorSuggestContext,
+  EditorSuggestTriggerInfo,
+  setIcon,
+  TFile,
+} from "obsidian";
+import type AmazeCompletePlugin from "../main";
+import { DateSuggestionProvider } from "./providers/date-provider";
+import { FileSuggestionProvider } from "./providers/file-provider";
+import { TemplateSuggestionProvider } from "./providers/template-provider";
+import { AmazeSuggestion, SuggestionCategory } from "./types";
+
+const CATEGORY_ICON: Record<SuggestionCategory, string> = {
+  date: "calendar",
+  template: "layout-template",
+  file: "file-text",
+};
+
+const CATEGORY_BADGE: Record<SuggestionCategory, string> = {
+  date: "Date",
+  template: "Template",
+  file: "File",
+};
+
+const CATEGORY_PRIORITY: Record<SuggestionCategory, number> = {
+  date: 3,
+  template: 2,
+  file: 1,
+};
+
+export default class AmazeSuggest extends EditorSuggest<AmazeSuggestion> {
+  app: App;
+  private plugin: AmazeCompletePlugin;
+  private dateProvider: DateSuggestionProvider;
+  private templateProvider: TemplateSuggestionProvider;
+  private fileProvider: FileSuggestionProvider;
+
+  constructor(app: App, plugin: AmazeCompletePlugin) {
+    super(app);
+    this.app = app;
+    this.plugin = plugin;
+
+    this.dateProvider = new DateSuggestionProvider(plugin);
+    this.templateProvider = new TemplateSuggestionProvider(plugin);
+    this.fileProvider = new FileSuggestionProvider(
+      plugin,
+      this.templateProvider
+    );
+
+    // @ts-ignore
+    this.scope.register(["Shift"], "Enter", (evt: KeyboardEvent) => {
+      // @ts-ignore
+      this.suggestions.useSelectedItem(evt);
+      return false;
+    });
+
+    this.setInstructions([
+      { command: "Enter", purpose: "Insert" },
+      { command: "Shift + Enter", purpose: "Keep text as alias / link" },
+    ]);
+  }
+
+  getSuggestions(context: EditorSuggestContext): AmazeSuggestion[] {
+    const query = context.query;
+
+    const dateSuggestions = this.dateProvider.getSuggestions(query);
+    const templateSuggestions = this.templateProvider.getSuggestions(query);
+    const fileSuggestions = this.fileProvider.getSuggestions(query);
+
+    const combined: AmazeSuggestion[] = [
+      ...dateSuggestions,
+      ...templateSuggestions,
+      ...fileSuggestions,
+    ];
+
+    if (combined.length > 0) {
+      return combined.sort((a, b) => {
+        if (b.score !== a.score) {
+          return b.score - a.score;
+        }
+        if (CATEGORY_PRIORITY[b.category] !== CATEGORY_PRIORITY[a.category]) {
+          return CATEGORY_PRIORITY[b.category] - CATEGORY_PRIORITY[a.category];
+        }
+        return a.label.localeCompare(b.label);
+      });
+    }
+
+    // Fallback catch-all if dates are enabled and no matches were found, matching nldates behavior
+    if (this.plugin.settings.enableDates && query.trim().length > 0) {
+      const parsed = this.plugin.parseDate(query);
+      return [
+        {
+          category: "date",
+          label: query,
+          subLabel: parsed.moment.isValid() ? parsed.formattedString : "",
+          rawQuery: query,
+          parsedPreview: parsed.formattedString,
+          isTime: false,
+          score: 1,
+        },
+      ];
+    }
+
+    return [];
+  }
+
+  renderSuggestion(suggestion: AmazeSuggestion, el: HTMLElement): void {
+    el.empty();
+    const container = el.createDiv({ cls: "amaze-suggest-item" });
+
+    const mainEl = container.createDiv({ cls: "amaze-suggest-main" });
+
+    const iconEl = mainEl.createSpan({ cls: "amaze-suggest-icon" });
+    setIcon(iconEl, CATEGORY_ICON[suggestion.category]);
+
+    mainEl.createSpan({
+      cls: `amaze-suggest-badge amaze-badge-${suggestion.category}`,
+      text: CATEGORY_BADGE[suggestion.category],
+    });
+
+    mainEl.createSpan({
+      cls: "amaze-suggest-label",
+      text: suggestion.label,
+    });
+
+    if (suggestion.subLabel) {
+      container.createDiv({
+        cls: "amaze-suggest-aux",
+        text: suggestion.subLabel,
+      });
+    }
+  }
+
+  async selectSuggestion(
+    suggestion: AmazeSuggestion,
+    event: KeyboardEvent | MouseEvent
+  ): Promise<void> {
+    if (!this.context) {
+      return;
+    }
+
+    const { editor, start, end, file } = this.context;
+    const isShiftHeld = Boolean(event.shiftKey);
+
+    switch (suggestion.category) {
+      case "date":
+        this.dateProvider.selectSuggestion(
+          suggestion,
+          editor,
+          start,
+          end,
+          isShiftHeld
+        );
+        break;
+
+      case "template":
+        await this.templateProvider.selectSuggestion(
+          suggestion,
+          editor,
+          start,
+          end,
+          isShiftHeld
+        );
+        break;
+
+      case "file":
+        this.fileProvider.selectSuggestion(
+          suggestion,
+          editor,
+          start,
+          end,
+          file?.path ?? "",
+          isShiftHeld
+        );
+        break;
+    }
+  }
+
+  onTrigger(
+    cursor: EditorPosition,
+    editor: Editor,
+    _file: TFile
+  ): EditorSuggestTriggerInfo | null {
+    if (!this.plugin.settings.isAutosuggestEnabled) {
+      return null;
+    }
+
+    const triggerPhrase = this.plugin.settings.autocompleteTriggerPhrase;
+    if (!triggerPhrase) {
+      return null;
+    }
+
+    const startPos = this.context?.start || {
+      line: cursor.line,
+      ch: cursor.ch - triggerPhrase.length,
+    };
+
+    if (startPos.ch < 0) {
+      return null;
+    }
+
+    if (!editor.getRange(startPos, cursor).startsWith(triggerPhrase)) {
+      return null;
+    }
+
+    const precedingChar =
+      startPos.ch > 0
+        ? editor.getRange(
+            {
+              line: startPos.line,
+              ch: startPos.ch - 1,
+            },
+            startPos
+          )
+        : "";
+
+    // Short-circuit if trigger is part of a word or inline code (e.g. email address)
+    if (precedingChar && /[`a-zA-Z0-9]/.test(precedingChar)) {
+      return null;
+    }
+
+    return {
+      start: startPos,
+      end: cursor,
+      query: editor.getRange(startPos, cursor).substring(triggerPhrase.length),
+    };
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "id": "obsidian-amazecomplete",
+  "name": "AmazeComplete",
+  "version": "1.0.0",
+  "minAppVersion": "1.1.0",
+  "description": "Smart unified autocomplete for natural language dates, Templater templates, and vault file links.",
+  "author": "",
+  "isDesktopOnly": false
+}
