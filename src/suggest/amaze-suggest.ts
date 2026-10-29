@@ -14,6 +14,12 @@ import { FileSuggestionProvider } from "./providers/file-provider";
 import { TemplateSuggestionProvider } from "./providers/template-provider";
 import { AmazeSuggestion, SuggestionCategory } from "./types";
 
+interface SuggestWithInternal {
+  suggestions?: {
+    useSelectedItem?: (evt: KeyboardEvent) => void;
+  };
+}
+
 const CATEGORY_ICON: Record<SuggestionCategory, string> = {
   date: "calendar",
   template: "layout-template",
@@ -51,10 +57,10 @@ export default class AmazeSuggest extends EditorSuggest<AmazeSuggestion> {
       this.templateProvider
     );
 
-    // @ts-ignore
     this.scope.register(["Shift"], "Enter", (evt: KeyboardEvent) => {
-      // @ts-ignore
-      this.suggestions.useSelectedItem(evt);
+      (this as unknown as SuggestWithInternal).suggestions?.useSelectedItem?.(
+        evt
+      );
       return false;
     });
 
@@ -128,10 +134,10 @@ export default class AmazeSuggest extends EditorSuggest<AmazeSuggestion> {
     }
   }
 
-  async selectSuggestion(
+  selectSuggestion(
     suggestion: AmazeSuggestion,
     event: KeyboardEvent | MouseEvent
-  ): Promise<void> {
+  ): void {
     if (!this.context) {
       return;
     }
@@ -151,7 +157,7 @@ export default class AmazeSuggest extends EditorSuggest<AmazeSuggestion> {
         break;
 
       case "template":
-        await this.templateProvider.selectSuggestion(
+        void this.templateProvider.selectSuggestion(
           suggestion,
           editor,
           start,

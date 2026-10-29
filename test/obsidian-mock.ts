@@ -32,6 +32,10 @@ export function setIcon(el: any, iconId: string): void {
   }
 }
 
+export function requireApiVersion(_version: string): boolean {
+  return true;
+}
+
 export class Plugin {}
 export class PluginSettingTab {}
 export class EditorSuggest<T> {

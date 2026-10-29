@@ -109,8 +109,10 @@ export class FileSuggestionProvider {
 
   private getFileAliases(file: TFile): string[] {
     const cache = this.plugin.app.metadataCache.getFileCache(file);
-    const rawAliases =
-      cache?.frontmatter?.aliases ?? cache?.frontmatter?.alias;
+    const frontmatter = cache?.frontmatter as
+      | Record<string, unknown>
+      | undefined;
+    const rawAliases = frontmatter?.aliases ?? frontmatter?.alias;
     if (Array.isArray(rawAliases)) {
       return rawAliases
         .filter((a): a is string => typeof a === "string" && a.trim().length > 0)

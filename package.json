@@ -1,6 +1,6 @@
 {
   "name": "amazecomplete",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Smart unified autocomplete for Obsidian: natural language dates, Templater templates, and vault file links under a single trigger.",
   "main": "main.js",
   "scripts": {

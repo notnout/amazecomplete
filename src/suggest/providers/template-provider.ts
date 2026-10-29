@@ -1,4 +1,5 @@
 import {
+  App,
   Editor,
   EditorPosition,
   Notice,
@@ -16,6 +17,34 @@ import { TemplateSuggestion } from "../types";
 
 const MAX_TEMPLATE_SUGGESTIONS = 10;
 
+interface TemplaterPluginInstance {
+  settings?: {
+    templates_folder?: string;
+  };
+  templater?: {
+    append_template_to_active_file?: (file: TFile) => Promise<void>;
+  };
+}
+
+interface CoreTemplatesPluginInstance {
+  enabled?: boolean;
+  instance?: {
+    options?: {
+      folder?: string;
+    };
+    insertTemplate?: (file: TFile) => Promise<void>;
+  };
+}
+
+interface AppWithPlugins extends App {
+  plugins?: {
+    plugins?: Record<string, TemplaterPluginInstance | undefined>;
+  };
+  internalPlugins?: {
+    plugins?: Record<string, CoreTemplatesPluginInstance | undefined>;
+  };
+}
+
 export class TemplateSuggestionProvider {
   private plugin: AmazeCompletePlugin;
 
@@ -23,8 +52,13 @@ export class TemplateSuggestionProvider {
     this.plugin = plugin;
   }
 
+  private getAppWithPlugins(): AppWithPlugins {
+    return this.plugin.app;
+  }
+
   getTemplateFolderPath(): string | null {
-    const { settings, app } = this.plugin;
+    const { settings } = this.plugin;
+    const appWithPlugins = this.getAppWithPlugins();
 
     if (settings.customTemplateFolder?.trim()) {
       return normalizePath(settings.customTemplateFolder.trim());
@@ -33,9 +67,9 @@ export class TemplateSuggestionProvider {
     const mode = settings.templateEngine;
 
     if (mode === "auto" || mode === "templater") {
-      const templaterFolder = (app as any).plugins?.plugins?.[
-        "templater-obsidian"
-      ]?.settings?.templates_folder;
+      const templaterFolder =
+        appWithPlugins.plugins?.plugins?.["templater-obsidian"]?.settings
+          ?.templates_folder;
       if (templaterFolder && typeof templaterFolder === "string") {
         return normalizePath(templaterFolder.trim());
       }
@@ -45,8 +79,9 @@ export class TemplateSuggestionProvider {
     }
 
     if (mode === "auto" || mode === "core-templates") {
-      const coreFolder = (app as any).internalPlugins?.plugins?.["templates"]
-        ?.instance?.options?.folder;
+      const coreFolder =
+        appWithPlugins.internalPlugins?.plugins?.["templates"]?.instance
+          ?.options?.folder;
       if (coreFolder && typeof coreFolder === "string") {
         return normalizePath(coreFolder.trim());
       }
@@ -142,32 +177,28 @@ export class TemplateSuggestionProvider {
     editor.setCursor(start);
 
     const { app, settings } = this.plugin;
+    const appWithPlugins = this.getAppWithPlugins();
     const mode = settings.templateEngine;
 
     try {
       if (mode === "auto" || mode === "templater") {
-        const templaterPlugin = (app as any).plugins?.plugins?.[
-          "templater-obsidian"
-        ];
-        if (templaterPlugin?.templater?.append_template_to_active_file) {
-          await templaterPlugin.templater.append_template_to_active_file(
-            suggestion.file
-          );
+        const appendTemplate =
+          appWithPlugins.plugins?.plugins?.["templater-obsidian"]?.templater
+            ?.append_template_to_active_file;
+        if (appendTemplate) {
+          await appendTemplate(suggestion.file);
           return;
         }
         if (mode === "templater") {
-          new Notice(
-            "AmazeComplete: Templater plugin is not enabled or available."
-          );
+          new Notice("Templater plugin is not enabled or available.");
           return;
         }
       }
 
       if (mode === "auto" || mode === "core-templates") {
-        const coreTemplates = (app as any).internalPlugins?.plugins?.[
-          "templates"
-        ];
-        if (coreTemplates?.enabled && coreTemplates?.instance?.insertTemplate) {
+        const coreTemplates =
+          appWithPlugins.internalPlugins?.plugins?.["templates"];
+        if (coreTemplates?.enabled && coreTemplates.instance?.insertTemplate) {
           await coreTemplates.instance.insertTemplate(suggestion.file);
           return;
         }

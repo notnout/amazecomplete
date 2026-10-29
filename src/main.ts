@@ -22,7 +22,8 @@ export default class AmazeCompletePlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const loadedData = (await this.loadData()) as Partial<AmazeSettings> | null;
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
   }
 
   async saveSettings(): Promise<void> {

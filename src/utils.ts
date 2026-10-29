@@ -1,6 +1,10 @@
 import { App, normalizePath, TFile } from "obsidian";
 import { DayOfWeek } from "./settings";
 
+interface VaultWithConfig {
+  getConfig?: (key: string) => unknown;
+}
+
 export const DAYS_OF_WEEK: Exclude<DayOfWeek, "locale-default">[] = [
   "sunday",
   "monday",
@@ -20,8 +24,7 @@ export function getLastDayOfMonth(year: number, month: number): number {
 }
 
 export function getLocaleWeekStart(): Exclude<DayOfWeek, "locale-default"> {
-  // @ts-ignore
-  const startOfWeek = window.moment?.localeData?.()?._week?.dow ?? 0;
+  const startOfWeek = window.moment?.localeData?.()?.firstDayOfWeek?.() ?? 0;
   return DAYS_OF_WEEK[startOfWeek] || "sunday";
 }
 
@@ -30,7 +33,8 @@ export function generateMarkdownLink(
   subpath: string,
   alias?: string
 ): string {
-  const useMarkdownLinks = (app.vault as any).getConfig?.("useMarkdownLinks");
+  const vaultWithConfig = app.vault as unknown as VaultWithConfig;
+  const useMarkdownLinks = vaultWithConfig.getConfig?.("useMarkdownLinks") === true;
   const path = normalizePath(subpath);
 
   if (useMarkdownLinks) {

@@ -30,7 +30,7 @@ Built on the date-parsing foundation of [Natural Language Dates (`nldates-obsidi
   - Automatically discovers templates from your **Templater** template folder (with fallback support for Obsidian's core **Templates** plugin or a custom folder override).
   - Selecting a template (e.g. `@Book` or `@Trip`) strips the trigger text and executes/expands the template directly at your cursor position.
 - **Vault Files & Aliases (`FILE`)**
-  - Fuzzy-searches across markdown files in your vault as well as YAML frontmatter `aliases` (e.g. `@TODO`).
+  - Fuzzy-searches across markdown files in your vault as well as YAML frontmatter `aliases` (e.g. `@Taxes` or `@Trips`).
   - Inserts clean `[[File]]` or `[[File|Alias]]` links while automatically excluding your templates folder from duplicate file suggestions.
 
 ---
@@ -39,7 +39,7 @@ Built on the date-parsing foundation of [Natural Language Dates (`nldates-obsidi
 
 | Key | Action on `DATE` | Action on `TEMPLATE` | Action on `FILE` |
 | :--- | :--- | :--- | :--- |
-| **`Enter`** | Inserts formatted date (e.g. `[[2026-10-27]]`) | Executes & expands the template inline at cursor | Inserts file link (e.g. `[[TODO]]`) |
+| **`Enter`** | Inserts formatted date (e.g. `[[2026-10-27]]`) | Executes & expands the template inline at cursor | Inserts file link (e.g. `[[Taxes]]`) |
 | **`Shift + Enter`** | Keeps natural language text as alias (`[[2026-10-27\|Today]]`) | Inserts a link to the template file (`[[Trip]]`) without expanding | Inserts link with alias |
 
 ---

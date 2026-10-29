@@ -1,4 +1,10 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import {
+  App,
+  PluginSettingTab,
+  requireApiVersion,
+  Setting,
+  SettingDefinitionItem,
+} from "obsidian";
 import AmazeCompletePlugin from "./main";
 import { DAYS_OF_WEEK, getLocaleWeekStart } from "./utils";
 
@@ -19,7 +25,7 @@ export interface AmazeSettings {
   isAutosuggestEnabled: boolean;
   autocompleteTriggerPhrase: string;
 
-  // Natural Language Dates settings
+  // Natural language dates settings
   enableDates: boolean;
   autosuggestToggleLink: boolean;
   format: string;
@@ -64,6 +70,195 @@ export class AmazeSettingsTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
+  getSettingDefinitions(): SettingDefinitionItem<keyof AmazeSettings>[] {
+    const localizedWeekdays = window.moment.weekdays();
+    const localeWeekStart = getLocaleWeekStart();
+    const weekdayOptions: Record<string, string> = {
+      "locale-default": `Locale default (${localeWeekStart})`,
+    };
+    localizedWeekdays.forEach((day, i) => {
+      weekdayOptions[DAYS_OF_WEEK[i]] = day;
+    });
+
+    return [
+      {
+        type: "group",
+        heading: "Autosuggest trigger",
+        items: [
+          {
+            name: "Enable autosuggest",
+            desc: "Open the unified autocomplete menu (dates, templates, files) with trigger phrase",
+            control: {
+              type: "toggle",
+              key: "isAutosuggestEnabled",
+              defaultValue: DEFAULT_SETTINGS.isAutosuggestEnabled,
+            },
+          },
+          {
+            name: "Trigger phrase",
+            desc: "Character(s) that will cause the autosuggest menu to open",
+            control: {
+              type: "text",
+              key: "autocompleteTriggerPhrase",
+              placeholder: DEFAULT_SETTINGS.autocompleteTriggerPhrase,
+              defaultValue: DEFAULT_SETTINGS.autocompleteTriggerPhrase,
+              disabled: () => !this.plugin.settings.isAutosuggestEnabled,
+            },
+          },
+        ],
+      },
+      {
+        type: "group",
+        heading: "Natural language dates",
+        items: [
+          {
+            name: "Enable date suggestions",
+            desc: "Suggest natural language dates (e.g., today, tomorrow)",
+            control: {
+              type: "toggle",
+              key: "enableDates",
+              defaultValue: DEFAULT_SETTINGS.enableDates,
+            },
+          },
+          {
+            name: "Add dates as link?",
+            desc: "If enabled, dates created via autosuggest will be wrapped in [[wikilinks]]",
+            control: {
+              type: "toggle",
+              key: "autosuggestToggleLink",
+              defaultValue: DEFAULT_SETTINGS.autosuggestToggleLink,
+              disabled: () => !this.plugin.settings.enableDates,
+            },
+          },
+          {
+            name: "Date format",
+            desc: "Output format for parsed dates",
+            control: {
+              type: "text",
+              key: "format",
+              placeholder: DEFAULT_SETTINGS.format,
+              defaultValue: DEFAULT_SETTINGS.format,
+              disabled: () => !this.plugin.settings.enableDates,
+            },
+          },
+          {
+            name: "Week starts on",
+            desc: "Which day to consider as the start of the week",
+            control: {
+              type: "dropdown",
+              key: "weekStart",
+              options: weekdayOptions,
+              defaultValue: DEFAULT_SETTINGS.weekStart,
+              disabled: () => !this.plugin.settings.enableDates,
+            },
+          },
+          {
+            name: "Time format",
+            desc: "Output format for time expressions (e.g., time:now)",
+            control: {
+              type: "text",
+              key: "timeFormat",
+              placeholder: DEFAULT_SETTINGS.timeFormat,
+              defaultValue: DEFAULT_SETTINGS.timeFormat,
+              disabled: () => !this.plugin.settings.enableDates,
+            },
+          },
+        ],
+      },
+      {
+        type: "group",
+        heading: "Templates",
+        items: [
+          {
+            name: "Enable template suggestions",
+            desc: "Suggest and insert available templates inline",
+            control: {
+              type: "toggle",
+              key: "enableTemplates",
+              defaultValue: DEFAULT_SETTINGS.enableTemplates,
+            },
+          },
+          {
+            name: "Template engine",
+            desc: "How templates should be discovered and executed when selected",
+            control: {
+              type: "dropdown",
+              key: "templateEngine",
+              options: {
+                auto: "Templater (fallback to core templates)",
+                templater: "Templater only",
+                "core-templates": "Core templates only",
+              },
+              defaultValue: DEFAULT_SETTINGS.templateEngine,
+              disabled: () => !this.plugin.settings.enableTemplates,
+            },
+          },
+          {
+            name: "Template folder override",
+            desc: "Optional folder path for templates. Leave empty to use the configured template folder automatically.",
+            control: {
+              type: "text",
+              key: "customTemplateFolder",
+              placeholder: "Templates",
+              defaultValue: DEFAULT_SETTINGS.customTemplateFolder,
+              disabled: () => !this.plugin.settings.enableTemplates,
+            },
+          },
+        ],
+      },
+      {
+        type: "group",
+        heading: "Files & links",
+        items: [
+          {
+            name: "Enable file suggestions",
+            desc: "Suggest vault files and insert them as [[wikilinks]]",
+            control: {
+              type: "toggle",
+              key: "enableFiles",
+              defaultValue: DEFAULT_SETTINGS.enableFiles,
+            },
+          },
+          {
+            name: "Include frontmatter aliases",
+            desc: "Match against YAML frontmatter aliases when searching for files",
+            control: {
+              type: "toggle",
+              key: "includeFileAliases",
+              defaultValue: DEFAULT_SETTINGS.includeFileAliases,
+              disabled: () => !this.plugin.settings.enableFiles,
+            },
+          },
+          {
+            name: "Exclude template folder from file suggestions",
+            desc: "Prevent files inside the template folder from appearing twice (as both a template and a file link)",
+            control: {
+              type: "toggle",
+              key: "excludeTemplatesFromFiles",
+              defaultValue: DEFAULT_SETTINGS.excludeTemplatesFromFiles,
+              disabled: () => !this.plugin.settings.enableFiles,
+            },
+          },
+        ],
+      },
+    ];
+  }
+
+  getControlValue<K extends keyof AmazeSettings>(key: K): AmazeSettings[K] {
+    return this.plugin.settings[key];
+  }
+
+  async setControlValue<K extends keyof AmazeSettings>(
+    key: K,
+    value: AmazeSettings[K]
+  ): Promise<void> {
+    this.plugin.settings[key] = value;
+    await this.plugin.saveSettings();
+    if (requireApiVersion("1.13.0")) {
+      this.refreshDomState();
+    }
+  }
+
   private setSectionSettingsDisabled(
     settings: Setting[],
     disabled: boolean
@@ -89,9 +284,7 @@ export class AmazeSettingsTab extends PluginSettingTab {
     containerEl.empty();
 
     // --- Section 1: Autosuggest trigger ---
-    containerEl.createEl("h3", {
-      text: "Autosuggest trigger",
-    });
+    new Setting(containerEl).setName("Autosuggest trigger").setHeading();
 
     const triggerSectionSettings: Setting[] = [];
 
@@ -131,16 +324,14 @@ export class AmazeSettingsTab extends PluginSettingTab {
       !this.plugin.settings.isAutosuggestEnabled
     );
 
-    // --- Section 2: Natural Language Dates ---
-    containerEl.createEl("h3", {
-      text: "Natural Language Dates",
-    });
+    // --- Section 2: Natural language dates ---
+    new Setting(containerEl).setName("Natural language dates").setHeading();
 
     const dateSectionSettings: Setting[] = [];
 
     new Setting(containerEl)
       .setName("Enable date suggestions")
-      .setDesc("Suggest natural language dates (e.g., Today, Tomorrow, next Friday)")
+      .setDesc("Suggest natural language dates (e.g., today, tomorrow)")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.enableDates)
@@ -216,16 +407,14 @@ export class AmazeSettingsTab extends PluginSettingTab {
       !this.plugin.settings.enableDates
     );
 
-    // --- Section 3: Templates (Templater) ---
-    containerEl.createEl("h3", {
-      text: "Templates (Templater)",
-    });
+    // --- Section 3: Templates ---
+    new Setting(containerEl).setName("Templates").setHeading();
 
     const templateSectionSettings: Setting[] = [];
 
     new Setting(containerEl)
       .setName("Enable template suggestions")
-      .setDesc("Suggest and insert available templates inline at the cursor")
+      .setDesc("Suggest and insert available templates inline")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.enableTemplates)
@@ -244,10 +433,10 @@ export class AmazeSettingsTab extends PluginSettingTab {
           dropdown
             .addOption(
               "auto",
-              "Auto-detect (Templater, fallback to Core Templates)"
+              "Templater (fallback to core templates)"
             )
             .addOption("templater", "Templater only")
-            .addOption("core-templates", "Core Templates only")
+            .addOption("core-templates", "Core templates only")
             .setValue(this.plugin.settings.templateEngine)
             .onChange(async (value: TemplateEngineMode) => {
               this.plugin.settings.templateEngine = value;
@@ -258,11 +447,11 @@ export class AmazeSettingsTab extends PluginSettingTab {
       new Setting(containerEl)
         .setName("Template folder override")
         .setDesc(
-          "Optional folder path for templates. Leave empty to automatically use Templater's configured template folder."
+          "Optional folder path for templates. Leave empty to use the configured template folder automatically."
         )
         .addText((text) =>
           text
-            .setPlaceholder("e.g. Templates")
+            .setPlaceholder("Templates")
             .setValue(this.plugin.settings.customTemplateFolder)
             .onChange(async (value) => {
               this.plugin.settings.customTemplateFolder = value.trim();
@@ -276,10 +465,8 @@ export class AmazeSettingsTab extends PluginSettingTab {
       !this.plugin.settings.enableTemplates
     );
 
-    // --- Section 4: Files & Links ---
-    containerEl.createEl("h3", {
-      text: "Files & Links",
-    });
+    // --- Section 4: Files & links ---
+    new Setting(containerEl).setName("Files & links").setHeading();
 
     const fileSectionSettings: Setting[] = [];
 
@@ -312,7 +499,7 @@ export class AmazeSettingsTab extends PluginSettingTab {
       new Setting(containerEl)
         .setName("Exclude template folder from file suggestions")
         .setDesc(
-          "Prevent files inside the template folder from appearing twice (as both a Template and a File link)"
+          "Prevent files inside the template folder from appearing twice (as both a template and a file link)"
         )
         .addToggle((toggle) =>
           toggle

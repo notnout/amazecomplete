@@ -1,5 +1,5 @@
 import * as chrono from "chrono-node";
-import type { Chrono, Parser } from "chrono-node";
+import type { Chrono } from "chrono-node";
 import type { Moment } from "moment";
 
 import { DayOfWeek } from "./settings";
@@ -37,7 +37,7 @@ function getConfiguredChrono(): Chrono {
       day: parseOrdinalNumberPattern(match[0]),
       month: (window.moment?.().month?.() ?? new Date().getMonth()) + 1,
     }),
-  } as Parser);
+  });
 
   return localizedChrono;
 }
