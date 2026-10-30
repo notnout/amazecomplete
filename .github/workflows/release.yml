@@ -15,6 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Use Node.js
         uses: actions/setup-node@v4
@@ -39,9 +41,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
+          PREV_TAG=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            COMMITS=$(git log "${PREV_TAG}..${TAG}" --pretty=format:"- %s (%h)")
+            NOTES=$(printf "## What's Changed\n\n%s\n\n**Full Changelog**: https://github.com/%s/compare/%s...%s" "$COMMITS" "$GITHUB_REPOSITORY" "$PREV_TAG" "$TAG")
+          else
+            COMMITS=$(git log "${TAG}" --pretty=format:"- %s (%h)")
+            NOTES=$(printf "## What's Changed\n\n%s" "$COMMITS")
+          fi
           gh release create "$TAG" \
             main.js \
             manifest.json \
             styles.css \
             --title "$TAG" \
-            --generate-notes
+            --notes "$NOTES"

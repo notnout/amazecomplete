@@ -154,6 +154,49 @@ async function runTests() {
     `[[${moment().format("YYYY-MM-DD")}|Today]]`
   );
 
+  // Test "Next Friday", "This Friday", "Last Friday", "Next week" when reference date is a Friday (2026-10-30)
+  const fridayRef = new Date("2026-10-30T12:00:00");
+  assert.strictEqual(
+    moment(plugin.parser.getParsedDate("Today", "sunday", fridayRef)).format("YYYY-MM-DD"),
+    "2026-10-30"
+  );
+  assert.strictEqual(
+    moment(plugin.parser.getParsedDate("Tomorrow", "sunday", fridayRef)).format("YYYY-MM-DD"),
+    "2026-10-31"
+  );
+  assert.strictEqual(
+    moment(plugin.parser.getParsedDate("Yesterday", "sunday", fridayRef)).format("YYYY-MM-DD"),
+    "2026-10-29"
+  );
+  assert.strictEqual(
+    moment(plugin.parser.getParsedDate("Next Friday", "sunday", fridayRef)).format("YYYY-MM-DD"),
+    "2026-11-06"
+  );
+  assert.strictEqual(
+    moment(plugin.parser.getParsedDate("This Friday", "sunday", fridayRef)).format("YYYY-MM-DD"),
+    "2026-10-30"
+  );
+  assert.strictEqual(
+    moment(plugin.parser.getParsedDate("Last Friday", "sunday", fridayRef)).format("YYYY-MM-DD"),
+    "2026-10-23"
+  );
+  assert.strictEqual(
+    moment(plugin.parser.getParsedDate("this week", "sunday", fridayRef)).format("YYYY-MM-DD"),
+    "2026-10-25"
+  );
+  assert.strictEqual(
+    moment(plugin.parser.getParsedDate("next week", "sunday", fridayRef)).format("YYYY-MM-DD"),
+    "2026-11-01"
+  );
+  assert.strictEqual(
+    moment(plugin.parser.getParsedDate("this week", "monday", fridayRef)).format("YYYY-MM-DD"),
+    "2026-10-26"
+  );
+  assert.strictEqual(
+    moment(plugin.parser.getParsedDate("next week", "monday", fridayRef)).format("YYYY-MM-DD"),
+    "2026-11-02"
+  );
+
   // 2. Test Templater Template suggestions ("Book")
   const templateSuggestions = templateProvider.getSuggestions("Book");
   assert.strictEqual(templateSuggestions.length, 1);
