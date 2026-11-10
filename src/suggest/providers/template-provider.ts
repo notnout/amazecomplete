@@ -22,7 +22,7 @@ interface TemplaterPluginInstance {
     templates_folder?: string;
   };
   templater?: {
-    append_template_to_active_file?: (file: TFile) => Promise<void>;
+    append_template_to_active_file?(file: TFile): Promise<void>;
   };
 }
 
@@ -32,7 +32,7 @@ interface CoreTemplatesPluginInstance {
     options?: {
       folder?: string;
     };
-    insertTemplate?: (file: TFile) => Promise<void>;
+    insertTemplate?(file: TFile): Promise<void>;
   };
 }
 
@@ -182,11 +182,10 @@ export class TemplateSuggestionProvider {
 
     try {
       if (mode === "auto" || mode === "templater") {
-        const appendTemplate =
-          appWithPlugins.plugins?.plugins?.["templater-obsidian"]?.templater
-            ?.append_template_to_active_file;
-        if (appendTemplate) {
-          await appendTemplate(suggestion.file);
+        const templater =
+          appWithPlugins.plugins?.plugins?.["templater-obsidian"]?.templater;
+        if (templater?.append_template_to_active_file) {
+          await templater.append_template_to_active_file(suggestion.file);
           return;
         }
         if (mode === "templater") {

@@ -55,7 +55,13 @@ function createMockPlugin(
             templates_folder: templaterFolder,
           },
           templater: {
-            append_template_to_active_file: async (file: any) => {
+            plugin: { id: "templater-obsidian" },
+            async append_template_to_active_file(file: any) {
+              if (!this || !this.plugin) {
+                throw new TypeError(
+                  "Cannot read properties of undefined (reading 'plugin')"
+                );
+              }
               templaterCalls.push(file.path);
             },
           },
@@ -215,6 +221,36 @@ async function runTests() {
   );
   assert.strictEqual(templateEditor.getText(), "Prefix  Suffix");
   assert.deepStrictEqual(plugin.templaterCalls, ["Templates/Book.md"]);
+
+  // Test Core Templates fallback also preserves 'this' context
+  let coreTemplateInserted = "";
+  plugin.app.internalPlugins = {
+    plugins: {
+      templates: {
+        enabled: true,
+        instance: {
+          options: { folder: "Templates" },
+          async insertTemplate(file: any) {
+            if (!this || !this.options) {
+              throw new TypeError("Unbound 'this' on core templates instance");
+            }
+            coreTemplateInserted = file.path;
+          },
+        },
+      },
+    },
+  };
+  plugin.settings.templateEngine = "core-templates";
+  const coreEditor = createMockEditor("@Book");
+  await templateProvider.selectSuggestion(
+    templateSuggestions[0],
+    coreEditor as any,
+    { line: 0, ch: 0 },
+    { line: 0, ch: 5 },
+    false
+  );
+  assert.strictEqual(coreTemplateInserted, "Templates/Book.md");
+  plugin.settings.templateEngine = "auto";
 
   // 3. Test File suggestions ("TODO") and verify Templates folder is excluded from File suggestions
   const fileSuggestionsForBook = fileProvider.getSuggestions("Book");

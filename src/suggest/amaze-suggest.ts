@@ -16,7 +16,7 @@ import { AmazeSuggestion, SuggestionCategory } from "./types";
 
 interface SuggestWithInternal {
   suggestions?: {
-    useSelectedItem?: (evt: KeyboardEvent) => void;
+    useSelectedItem?(evt: KeyboardEvent): void;
   };
 }
 

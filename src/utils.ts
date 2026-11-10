@@ -2,7 +2,7 @@ import { App, normalizePath, TFile } from "obsidian";
 import { DayOfWeek } from "./settings";
 
 interface VaultWithConfig {
-  getConfig?: (key: string) => unknown;
+  getConfig?(key: string): unknown;
 }
 
 export const DAYS_OF_WEEK: Exclude<DayOfWeek, "locale-default">[] = [
